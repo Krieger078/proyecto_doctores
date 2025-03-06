@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ver Pacientes</title>
+</head>
+<body>
+  <div class="container">
+    <h1>Mis Pacientes</h1>
+    {% if patients %}
+      <ul>
+        {% for patient in patients %}
+          <li>{{ patient.name }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No hay pacientes registrados.</p>
+    {% endif %}
+    <p><a href="{{ url_for('dashboard') }}">Volver al Panel</a></p>
+  </div>
+</body>
+</html>

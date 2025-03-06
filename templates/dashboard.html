@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Pacientes</title>
+</head>
+<body>
+  <div class="container">
+    <h1>Panel de Pacientes</h1>
+    <div class="botones">
+      <a href="{{ url_for('agregar_paciente') }}">Agregar Paciente</a>
+      <a href="{{ url_for('ver_pacientes') }}">Ver Pacientes</a>
+      <a href="{{ url_for('eliminar_pacientes') }}">Eliminar Pacientes</a>
+    </div>
+    <p><a href="{{ url_for('logout') }}">Cerrar Sesión</a></p>
+  </div>
+</body>
+</html>

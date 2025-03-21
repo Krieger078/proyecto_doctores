@@ -3,51 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="/static/styles.css">
   <title>Agregar Paciente</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <!-- Estilos generales -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <!-- CSS de flatpickr -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
   <div class="container">
-    <h1>Agregar Paciente</h1>
-    <form action="{{ url_for('agregar_paciente') }}" method="POST">
-      <div class="form-group">
-        <label for="nombre">Nombre del Paciente</label>
-        <input type="text" id="nombre" name="nombre" placeholder="Ingresa el nombre del paciente" required>
-      </div>
-      <div class="form-group">
-        <label for="fecha_nacimiento">Fecha de Nacimiento</label>
-        <input type="text" id="fecha_nacimiento" name="fecha_nacimiento" placeholder="Selecciona la fecha de nacimiento">
-      </div>
-      <div class="form-group">
-        <label for="genero">Género</label>
-        <select id="genero" name="genero">
-          <option value="">Selecciona el género</option>
-          <option value="masculino">Masculino</option>
-          <option value="femenino">Femenino</option>
-          <option value="otro">Otro</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="peso">Peso (kg)</label>
-        <input type="number" step="0.1" id="peso" name="peso" placeholder="Ingresa el peso">
-      </div>
-      <div class="form-group">
-        <label for="altura">Altura (m)</label>
-        <input type="number" step="0.01" id="altura" name="altura" placeholder="Ingresa la altura">
-      </div>
-      <div class="form-group">
-        <label for="condiciones_medicas">Condiciones Médicas</label>
-        <textarea id="condiciones_medicas" name="condiciones_medicas" placeholder="Describe las condiciones médicas"></textarea>
-      </div>
-      <div class="form-group">
-        <label for="notas">Notas Adicionales</label>
-        <textarea id="notas" name="notas" placeholder="Agrega cualquier nota adicional"></textarea>
-      </div>
-      <div class="botones">
-        <button type="submit">Agregar Paciente</button>
-      </div>
-    </form>
-    <p><a href="{{ url_for('dashboard') }}">Volver al Panel</a></p>
+      <h1>Agregar Paciente</h1>
+      <form action="{{ url_for('agregar_paciente') }}" method="POST">
+          <div class="form-group">
+              <label for="nombre">Nombre del Paciente</label>
+              <input type="text" id="nombre" name="nombre" placeholder="Ingresa el nombre del paciente" required>
+          </div>
+          <div class="form-group">
+              <label for="fecha_nacimiento">Fecha de Nacimiento</label>
+              <input type="text" id="fecha_nacimiento" name="fecha_nacimiento" placeholder="Selecciona la fecha de nacimiento">
+          </div>
+          <div class="form-group">
+              <label for="genero">Género</label>
+              <select id="genero" name="genero">
+                  <option value="">Selecciona el género</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="femenino">Femenino</option>
+                  <option value="otro">Otro</option>
+              </select>
+          </div>
+          <div class="form-group">
+              <label for="peso">Peso (kg)</label>
+              <input type="number" step="0.1" id="peso" name="peso" placeholder="Ingresa el peso">
+          </div>
+          <div class="form-group">
+              <label for="altura">Altura (m)</label>
+              <input type="number" step="0.01" id="altura" name="altura" placeholder="Ingresa la altura">
+          </div>
+          <div class="form-group">
+              <label for="condiciones_medicas">Condiciones Médicas</label>
+              <textarea id="condiciones_medicas" name="condiciones_medicas" placeholder="Describe las condiciones médicas"></textarea>
+          </div>
+          <div class="form-group">
+              <label for="notas">Notas Adicionales</label>
+              <textarea id="notas" name="notas" placeholder="Agrega cualquier nota adicional"></textarea>
+          </div>
+          <div class="botones">
+              <button type="submit" class="btn register">Agregar Paciente</button>
+          </div>
+      </form>
+      <p class="espaciado"><a href="{{ url_for('dashboard') }}">Volver al Panel</a></p>
   </div>
+
+  <!-- JS de flatpickr -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <!--Lenguaje en español-->
+  <script>
+    // Inicializar flatpickr
+    flatpickr("#fecha_nacimiento", {
+        locale: "es",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",   // Ej: "Marzo 4, 2025"
+        allowInput: true
+    });
+  </script>
 </body>
 </html>

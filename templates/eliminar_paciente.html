@@ -3,27 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="/static/styles.css">
   <title>Eliminar Pacientes</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
   <div class="container">
-    <h1>Eliminar Pacientes</h1>
-    {% if patients %}
+      <h1>Eliminar Pacientes</h1>
+      {% if patients %}
       <ul>
-        {% for patient in patients %}
+          {% for patient in patients %}
           <li>
-            {{ patient.name }}
-            <form action="{{ url_for('eliminar_paciente', patient_id=patient.id) }}" method="POST" style="display:inline;">
-              <button type="submit">Eliminar</button>
-            </form>
+              {{ patient.name }}
+              <form action="{{ url_for('eliminar_paciente', patient_id=patient.id) }}" method="POST" style="display:inline;">
+                  <button type="submit" class="btn login">Eliminar</button>
+              </form>
           </li>
-        {% endfor %}
+          {% endfor %}
       </ul>
-    {% else %}
+      {% else %}
       <p>No hay pacientes registrados.</p>
-    {% endif %}
-    <p><a href="{{ url_for('dashboard') }}">Volver al Panel</a></p>
+      {% endif %}
+      <p class="espaciado"><a href="{{ url_for('dashboard') }}">Volver al Panel</a></p>
   </div>
 </body>
 </html>

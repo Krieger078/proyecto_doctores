@@ -14,7 +14,7 @@
       <ul>
           {% for patient in patients %}
           <li>
-              {{ patient.name }}
+              {{ patient.nombre }}
               <form action="{{ url_for('eliminar_paciente', patient_id=patient.id) }}" method="POST" style="display:inline;">
                   <button type="submit" class="btn login">Eliminar</button>
               </form>

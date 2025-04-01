@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalles del Paciente</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="container">
+      <h1>Detalles del Paciente</h1>
+      <ul>
+         <li><strong>Nombre:</strong> {{ patient.nombre }}</li>
+         {% if patient.fecha_nacimiento %}
+         <li><strong>Fecha de Nacimiento:</strong> {{ patient.fecha_nacimiento }}</li>
+         {% endif %}
+         {% if patient.genero %}
+         <li><strong>Género:</strong> {{ patient.genero }}</li>
+         {% endif %}
+         {% if patient.peso %}
+         <li><strong>Peso:</strong> {{ patient.peso }} kg</li>
+         {% endif %}
+         {% if patient.altura %}
+         <li><strong>Altura:</strong> {{ patient.altura }} m</li>
+         {% endif %}
+         {% if patient.condiciones_medicas %}
+         <li><strong>Condiciones Médicas:</strong> {{ patient.condiciones_medicas }}</li>
+         {% endif %}
+         {% if patient.notas %}
+         <li><strong>Notas:</strong> {{ patient.notas }}</li>
+         {% endif %}
+      </ul>
+      <p class="espaciado"><a href="{{ url_for('ver_pacientes') }}">Volver a la lista</a></p>
+  </div>
+</body>
+</html>

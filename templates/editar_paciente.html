@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editar Paciente</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+  <div class="container">
+      <h1>Editar Paciente: {{ patient.nombre }}</h1>
+      <form action="{{ url_for('editar_paciente', patient_id=patient.id) }}" method="POST">
+          <div class="form-group">
+              <label for="nombre">Nombre del Paciente</label>
+              <input type="text" id="nombre" name="nombre" value="{{ patient.nombre }}" required>
+          </div>
+          <div class="form-group">
+              <label for="fecha_nacimiento">Fecha de Nacimiento</label>
+              <input type="text" id="fecha_nacimiento" name="fecha_nacimiento" 
+                     value="{{ patient.fecha_nacimiento if patient.fecha_nacimiento else '' }}">
+          </div>
+          <div class="form-group">
+              <label for="genero">Género</label>
+              <select id="genero" name="genero">
+                  <option value="">Selecciona el género</option>
+                  <option value="masculino" {% if patient.genero == 'masculino' %}selected{% endif %}>Masculino</option>
+                  <option value="femenino" {% if patient.genero == 'femenino' %}selected{% endif %}>Femenino</option>
+                  <option value="otro" {% if patient.genero == 'otro' %}selected{% endif %}>Otro</option>
+              </select>
+          </div>
+          <div class="form-group">
+              <label for="peso">Peso (kg)</label>
+              <input type="number" step="0.1" id="peso" name="peso" 
+                     value="{{ patient.peso if patient.peso else '' }}">
+          </div>
+          <div class="form-group">
+              <label for="altura">Altura (m)</label>
+              <input type="number" step="0.01" id="altura" name="altura" 
+                     value="{{ patient.altura if patient.altura else '' }}">
+          </div>
+          <div class="form-group">
+              <label for="condiciones_medicas">Condiciones Médicas</label>
+              <textarea id="condiciones_medicas" name="condiciones_medicas">{{ patient.condiciones_medicas if patient.condiciones_medicas else '' }}</textarea>
+          </div>
+          <div class="form-group">
+              <label for="notas">Notas Adicionales</label>
+              <textarea id="notas" name="notas">{{ patient.notas if patient.notas else '' }}</textarea>
+          </div>
+          <div class="botones">
+              <button type="submit" class="btn register">Guardar Cambios</button>
+              <a href="{{ url_for('detalle_paciente', patient_id=patient.id) }}" class="btn login">Cancelar</a>
+          </div>
+      </form>
+  </div>
+
+  <!-- JS de flatpickr -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script>
+    flatpickr("#fecha_nacimiento", {
+        locale: "es",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        allowInput: true,
+        defaultDate: "{{ patient.fecha_nacimiento if patient.fecha_nacimiento else '' }}"
+    });
+  </script>
+</body>
+</html>

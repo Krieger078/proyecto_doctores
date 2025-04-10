@@ -226,6 +226,51 @@ def logout():
     flash('Sesión cerrada correctamente', 'success')
     return redirect(url_for('index'))
 
+@app.route('/editar_paciente/<int:patient_id>', methods=['GET', 'POST'])
+def editar_paciente(patient_id):
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión primero', 'error')
+        return redirect(url_for('login'))
+    
+    patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
+    if not patient:
+        flash('Paciente no encontrado', 'error')
+        return redirect(url_for('ver_pacientes'))
+    
+    if request.method == 'POST':
+        try:
+            patient.nombre = request.form['nombre']
+            
+            # Procesar fecha de nacimiento
+            fecha_nacimiento = request.form.get('fecha_nacimiento')
+            patient.fecha_nacimiento = datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date() if fecha_nacimiento else None
+            
+            patient.genero = request.form.get('genero')
+            
+            # Procesar peso y altura
+            peso = request.form.get('peso')
+            patient.peso = float(peso) if peso else None
+            
+            altura = request.form.get('altura')
+            patient.altura = float(altura) if altura else None
+            
+            patient.condiciones_medicas = request.form.get('condiciones_medicas')
+            patient.notas = request.form.get('notas')
+            
+            db.session.commit()
+            flash('Paciente actualizado correctamente', 'success')
+            return redirect(url_for('detalle_paciente', patient_id=patient.id))
+            
+        except ValueError as e:
+            db.session.rollback()
+            flash('Error en los datos proporcionados: ' + str(e), 'error')
+        except Exception as e:
+            db.session.rollback()
+            flash('Error al actualizar el paciente', 'error')
+            print(e)
+    
+    return render_template('editar_paciente.html', patient=patient)
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()  # Asegúrate de migrar o actualizar la BD si ya existe

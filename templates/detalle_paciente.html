@@ -31,6 +31,10 @@
          <li><strong>Notas:</strong> {{ patient.notas }}</li>
          {% endif %}
       </ul>
+      <div class="botones">
+        <a href="{{ url_for('editar_paciente', patient_id=patient.id) }}" class="btn">Editar Paciente</a>
+        <a href="{{ url_for('ver_pacientes') }}" class="btn login">Volver a la lista</a>
+      </div>
       <p class="espaciado"><a href="{{ url_for('ver_pacientes') }}">Volver a la lista</a></p>
   </div>
 </body>

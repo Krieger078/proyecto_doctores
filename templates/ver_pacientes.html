@@ -13,7 +13,10 @@
       {% if patients %}
       <ul>
           {% for patient in patients %}
-          <li><a href="{{ url_for('detalle_paciente', patient_id=patient.id) }}">{{ patient.nombre }}</a></li>
+          <li>
+            <a href="{{ url_for('detalle_paciente', patient_id=patient.id) }}">{{ patient.nombre }}</a>
+            <a href="{{ url_for('editar_paciente', patient_id=patient.id) }}" class="btn edit" style="margin-left: 10px;">Editar</a>
+        </li>
           {% endfor %}
       </ul>
       {% else %}

@@ -3,16 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Página de Inicio</title>
+  <title>Bienvenido | Sistema Médico</title>
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <div class="container">
-    <h1>Bienvenido Doctor</h1>
-    <div class="botones">
-      <a class="btn login" href="/login">Iniciar Sesión</a>
-      <a class="btn register" href="/register">Registrarse</a>
+  <div class="form-container">
+    <div class="form-card index-card">
+      <h1 class="form-title">
+        <i class="fas fa-heartbeat"></i> Bienvenido Doctor
+      </h1>
+      <p class="welcome-text">
+        Sistema de Gestión Médica Integral
+      </p>
+      
+      <div class="index-buttons">
+        <a href="/login" class="btn btn-primary btn-block">
+          <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
+        </a>
+        <a href="/register" class="btn btn-secondary btn-block">
+          <i class="fas fa-user-plus"></i> Registrarse
+        </a>
+      </div>
+
+      <div class="feature-list">
+        <div class="feature-item">
+          <i class="fas fa-user-friends feature-icon"></i>
+          <h3>Gestión de Pacientes</h3>
+          <p>Administra los registros médicos de tus pacientes</p>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-calendar-check feature-icon"></i>
+          <h3>Historial Clínico</h3>
+          <p>Accede al historial médico completo</p>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-chart-line feature-icon"></i>
+          <h3>Reportes</h3>
+          <p>Genera informes y estadísticas</p>
+        </div>
+      </div>
     </div>
   </div>
 </body>

@@ -5,37 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detalles del Paciente</title>
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <div class="container">
-      <h1>Detalles del Paciente</h1>
-      <ul>
-         <li><strong>Nombre:</strong> {{ patient.nombre }}</li>
+  <div class="patient-detail-container">
+      <h1><i class="fas fa-user-injured"></i> Detalles del Paciente</h1>
+      <ul class="patient-detail-list">
+         <li class="patient-detail-item">
+             <strong>Nombre:</strong>
+             <p>{{ patient.nombre }}</p>
+         </li>
          {% if patient.fecha_nacimiento %}
-         <li><strong>Fecha de Nacimiento:</strong> {{ patient.fecha_nacimiento }}</li>
+         <li class="patient-detail-item">
+             <strong>Fecha de Nacimiento:</strong>
+             <p>{{ patient.fecha_nacimiento }}</p>
+         </li>
          {% endif %}
          {% if patient.genero %}
-         <li><strong>Género:</strong> {{ patient.genero }}</li>
+         <li class="patient-detail-item">
+             <strong>Género:</strong>
+             <p>{{ patient.genero }}</p>
+         </li>
          {% endif %}
          {% if patient.peso %}
-         <li><strong>Peso:</strong> {{ patient.peso }} kg</li>
+         <li class="patient-detail-item">
+             <strong>Peso:</strong>
+             <p>{{ patient.peso }} kg</p>
+         </li>
          {% endif %}
          {% if patient.altura %}
-         <li><strong>Altura:</strong> {{ patient.altura }} m</li>
+         <li class="patient-detail-item">
+             <strong>Altura:</strong>
+             <p>{{ patient.altura }} m</p>
+         </li>
          {% endif %}
          {% if patient.condiciones_medicas %}
-         <li><strong>Condiciones Médicas:</strong> {{ patient.condiciones_medicas }}</li>
+         <li class="patient-detail-item">
+             <strong>Condiciones Médicas:</strong>
+             <p>{{ patient.condiciones_medicas }}</p>
+         </li>
          {% endif %}
          {% if patient.notas %}
-         <li><strong>Notas:</strong> {{ patient.notas }}</li>
+         <li class="patient-detail-item">
+             <strong>Notas:</strong>
+             <p>{{ patient.notas }}</p>
+         </li>
          {% endif %}
       </ul>
-      <div class="botones">
-        <a href="{{ url_for('editar_paciente', patient_id=patient.id) }}" class="btn">Editar Paciente</a>
-        <a href="{{ url_for('ver_pacientes') }}" class="btn login">Volver a la lista</a>
+      <div class="patient-actions">
+        <a href="{{ url_for('editar_paciente', patient_id=patient.id) }}" class="btn btn-primary">
+          <i class="fas fa-edit"></i> Editar Paciente
+        </a>
+        <a href="{{ url_for('ver_pacientes') }}" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Volver a la lista
+        </a>
       </div>
-      <p class="espaciado"><a href="{{ url_for('ver_pacientes') }}">Volver a la lista</a></p>
   </div>
 </body>
 </html>

@@ -1,3 +1,19 @@
+#                   Citas medicas                       #
+#       Encargado del proyecto (Scrum Master):          #   
+#              Oscar Delgadillo Valdés                  #
+#                   Integrantes:                        #
+#             -Oscar Delgadillo Valdés                  #
+#           -Sandra Camila Flores Vargas                #
+#          -Daniela Rocio Patiño Martinez               #
+#               -Aaron Reyna Gomez                      #
+#            -David Arturo Moreno Razo                  #
+#                                                       #
+#                   Descripción:                        #
+#   Este archivo controla todas las funciones de la     # 
+#   web, funciones para eliminar, agregar, editar y     #
+#   mostrar pacientes. También incluye funciones para   #
+#   iniciar sesión y registrarse.                       #
+
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -42,7 +58,7 @@ class Patient(db.Model):
     condiciones_medicas = db.Column(db.Text, nullable=True)
     notas = db.Column(db.Text, nullable=True)
     especialidad = db.Column(db.String(100), nullable=True)
-    activo = db.Column(db.Boolean, default=True, nullable=False)  # Nuevo campo
+    activo = db.Column(db.Boolean, default=True, nullable=False)
 
     def __repr__(self):
         return f'<Patient {self.nombre}>'
@@ -273,5 +289,5 @@ def editar_paciente(patient_id):
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()  # Asegúrate de migrar o actualizar la BD si ya existe
+        db.create_all()
     app.run(debug=True)

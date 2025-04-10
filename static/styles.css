@@ -118,3 +118,16 @@
     transform: scale(1.05);
   }
   
+/* Estilo para botón de editar */
+.btn.edit {
+  background: linear-gradient(45deg, #ffc107, #ff9800);
+  color: #fff;
+}
+
+/* Espaciado para botones en detalle paciente */
+.detalle-paciente .botones {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}

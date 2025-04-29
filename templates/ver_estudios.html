@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estudios Médicos | Sistema Médico</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="patients-container">
+    <div class="patients-header">
+        <h1><i class="fas fa-file-medical"></i> Estudios Médicos</h1>
+        <div class="header-buttons">
+          <a href="{{ url_for('subir_estudio', patient_id=patient.id) }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Nuevo Estudio
+          </a>
+          <a href="{{ url_for('detalle_paciente', patient_id=patient.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Paciente
+          </a>
+        </div>
+      </div>
+
+    <div class="patients-list">
+      {% if studies %}
+        {% for study in studies %}
+        <div class="patient-item">
+          <div class="patient-info">
+            <div class="patient-avatar">
+              {% if study.file_type == 'pdf' %}
+                <i class="fas fa-file-pdf"></i>
+              {% elif study.file_type in ['jpg', 'jpeg', 'png'] %}
+                <i class="fas fa-file-image"></i>
+              {% elif study.file_type in ['doc', 'docx'] %}
+                <i class="fas fa-file-word"></i>
+              {% else %}
+                <i class="fas fa-file"></i>
+              {% endif %}
+            </div>
+            <div>
+              <a href="{{ url_for('descargar_estudio', study_id=study.id) }}" class="patient-name">
+                {{ study.original_filename }}
+              </a>
+              <div class="patient-id">
+                Subido el: {{ study.upload_date.strftime('%d/%m/%Y %H:%M') }} | 
+                Tamaño: {{ (study.file_size / 1024 / 1024)|round(2) }} MB
+              </div>
+              {% if study.description %}
+                <div class="patient-description">{{ study.description }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="patient-actions">
+            <a href="{{ url_for('descargar_estudio', study_id=study.id) }}" class="btn-action view" title="Descargar">
+              <i class="fas fa-download"></i>
+            </a>
+            <form action="{{ url_for('eliminar_estudio', study_id=study.id) }}" method="POST" class="delete-form">
+              <button type="submit" class="btn-action delete" title="Eliminar">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="no-patients">
+          <i class="fas fa-file-medical-alt"></i>
+          <h3>No hay estudios registrados</h3>
+          <p>Comience subiendo un nuevo estudio médico</p>
+          <a href="{{ url_for('subir_estudio', patient_id=patient.id) }}" class="btn-add">
+            <i class="fas fa-plus"></i> Subir Primer Estudio
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

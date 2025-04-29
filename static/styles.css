@@ -842,3 +842,145 @@ h1, h2, h3, h4 {
     flex-direction: column;
   }
 }
+
+/* ===== Estilos para header de estudios médicos ===== */
+.studies-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.studies-header h1 {
+  color: var(--primary-color);
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0;
+}
+
+.studies-header-actions {
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+/* Estilo para los botones */
+.btn-study {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: var(--transition);
+  text-align: center;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-new-study {
+  background-color: var(--primary-color);
+  color: var(--white);
+}
+
+.btn-new-study:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-back-patient {
+  background-color: var(--secondary-color);
+  color: var(--white);
+}
+
+.btn-back-patient:hover {
+  background-color: #5a6268;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .studies-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .studies-header-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .btn-study {
+    width: 48%;
+    justify-content: center;
+  }
+}
+
+/* ===== Estilos para lista de estudios ===== */
+.studies-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.study-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.study-item {
+  background: var(--white);
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: var(--transition);
+}
+
+.study-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+.study-info {
+  flex: 1;
+  min-width: 0; /* Evita problemas con textos largos */
+}
+
+.study-title {
+  font-weight: 500;
+  color: var(--dark-color);
+  margin-bottom: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.study-meta {
+  display: flex;
+  gap: 1rem;
+  color: var(--secondary-color);
+  font-size: 0.875rem;
+}
+
+.study-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.study-description {
+  color: var(--secondary-color);
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}

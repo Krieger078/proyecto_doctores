@@ -14,10 +14,11 @@
 #   mostrar pacientes. También incluye funciones para   #
 #   iniciar sesión y registrarse.                       #
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from werkzeug.utils import secure_filename
 import os
 
 app = Flask(__name__)
@@ -28,6 +29,19 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:P1ng0r1nd05@localh
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+
+#Validación de los formatos, carpetas, etc.
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+# Configuración de los archivos
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx'}
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB es el límite
+
+# Crear carpeta de uploads si no existe
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Modelo del Doctor
 class User(db.Model):
@@ -62,6 +76,22 @@ class Patient(db.Model):
 
     def __repr__(self):
         return f'<Patient {self.nombre}>'
+
+# Agregar los estudios medicos (añadir archivos)
+class MedicalStudy(db.Model):
+    __tablename__ = 'estudios_medicos'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('pacientes.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctores.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_type = db.Column(db.String(50), nullable=False)
+    file_size = db.Column(db.Integer, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    patient = db.relationship('Patient', backref='studies')
+    doctor = db.relationship('User', backref='uploaded_studies')
 
 # Rutas
 @app.route('/')
@@ -286,6 +316,122 @@ def editar_paciente(patient_id):
             print(e)
     
     return render_template('editar_paciente.html', patient=patient)
+
+# Ruta para subir estudios médicos
+@app.route('/subir_estudio/<int:patient_id>', methods=['GET', 'POST'])
+def subir_estudio(patient_id):
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión primero', 'error')
+        return redirect(url_for('login'))
+    
+    patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
+    if not patient:
+        flash('Paciente no encontrado', 'error')
+        return redirect(url_for('ver_pacientes'))
+    
+    if request.method == 'POST':
+        # Verificar si se envió el archivo
+        if 'file' not in request.files:
+            flash('No se seleccionó ningún archivo', 'error')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        description = request.form.get('description', '')
+        
+        if file.filename == '':
+            flash('No se seleccionó ningún archivo', 'error')
+            return redirect(request.url)
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            
+            try:
+                file.save(filepath)
+                file_size = os.path.getsize(filepath)
+                
+                new_study = MedicalStudy(
+                    patient_id=patient_id,
+                    doctor_id=session['user_id'],
+                    filename=unique_filename,
+                    original_filename=filename,
+                    file_type=filename.rsplit('.', 1)[1].lower(),
+                    file_size=file_size,
+                    description=description
+                )
+                
+                db.session.add(new_study)
+                db.session.commit()
+                flash('Estudio subido correctamente', 'success')
+                return redirect(url_for('ver_estudios', patient_id=patient_id))
+            
+            except Exception as e:
+                db.session.rollback()
+                flash('Error al subir el archivo', 'error')
+                print(e)
+        
+        else:
+            flash('Tipo de archivo no permitido', 'error')
+    
+    return render_template('subir_estudio.html', patient=patient)
+
+# Ruta para ver los estudios
+@app.route('/ver_estudios/<int:patient_id>')
+def ver_estudios(patient_id):
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión primero', 'error')
+        return redirect(url_for('login'))
+    
+    patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
+    if not patient:
+        flash('Paciente no encontrado', 'error')
+        return redirect(url_for('ver_pacientes'))
+    
+    studies = MedicalStudy.query.filter_by(patient_id=patient_id).order_by(MedicalStudy.upload_date.desc()).all()
+    return render_template('ver_estudios.html', patient=patient, studies=studies)
+
+# Ruta para descargar estudios médicos
+@app.route('/descargar_estudio/<int:study_id>')
+def descargar_estudio(study_id):
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión primero', 'error')
+        return redirect(url_for('login'))
+    
+    study = MedicalStudy.query.filter_by(id=study_id, doctor_id=session['user_id']).first()
+    if not study:
+        flash('Estudio no encontrado', 'error')
+        return redirect(url_for('ver_pacientes'))
+    
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], study.filename)
+    return send_file(filepath, as_attachment=True, download_name=study.original_filename)
+
+# Ruta para eliminar estudios médicos
+@app.route('/eliminar_estudio/<int:study_id>', methods=['POST'])
+def eliminar_estudio(study_id):
+    if 'user_id' not in session:
+        flash('Debes iniciar sesión primero', 'error')
+        return redirect(url_for('login'))
+    
+    study = MedicalStudy.query.filter_by(id=study_id, doctor_id=session['user_id']).first()
+    if not study:
+        flash('Estudio no encontrado', 'error')
+        return redirect(url_for('ver_pacientes'))
+    
+    try:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], study.filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        
+        db.session.delete(study)
+        db.session.commit()
+        flash('Estudio eliminado correctamente', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error al eliminar el estudio', 'error')
+        print(e)
+    
+    return redirect(url_for('ver_estudios', patient_id=study.patient_id))
 
 if __name__ == '__main__':
     with app.app_context():

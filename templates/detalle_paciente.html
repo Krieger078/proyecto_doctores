@@ -9,6 +9,17 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
+  <div class="form-section">
+    <h2 class="form-section-title"><i class="fas fa-file-medical"></i> Estudios Médicos</h2>
+    <div class="patient-actions">
+      <a href="{{ url_for('ver_estudios', patient_id=patient.id) }}" class="btn btn-primary">
+        <i class="fas fa-folder-open"></i> Ver Estudios
+      </a>
+      <a href="{{ url_for('subir_estudio', patient_id=patient.id) }}" class="btn btn-secondary">
+        <i class="fas fa-upload"></i> Subir Estudio
+      </a>
+    </div>
+  </div>
   <div class="patient-detail-container">
       <h1><i class="fas fa-user-injured"></i> Detalles del Paciente</h1>
       <ul class="patient-detail-list">

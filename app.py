@@ -20,13 +20,15 @@ import os
 from datetime import datetime
 
 # Importaciones de terceros
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, jsonify, make_response, Blueprint
 from flask_sqlalchemy import SQLAlchemy
+from flask_restful import Api, Resource, reqparse
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
 import ssl
+import requests
 
 # Inicialización de la aplicación Flask
 app = Flask(__name__)
@@ -59,6 +61,13 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB límite
 db = SQLAlchemy(app)
 mail = Mail(app)
 mail.init_app(app)
+
+# Configuración de la API RESTful
+api_blueprint = Blueprint('api', __name__, url_prefix='/api')
+api = Api(api_blueprint)
+
+# Registra el blueprint de la API
+app.register_blueprint(api_blueprint)
 
 # Crear carpeta de uploads si no existe
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -149,6 +158,221 @@ class MedicalStudy(db.Model):
     
     patient = db.relationship('Patient', backref='studies')
     doctor = db.relationship('User', backref='uploaded_studies')
+
+# -------------------- API RESTful -------------------- #
+
+# Parser para los datos de las citas
+appointment_parser = reqparse.RequestParser()
+appointment_parser.add_argument('patient_id', type=int, required=True, help='ID del paciente es requerido')
+appointment_parser.add_argument('fecha_cita', type=str, required=True, help='Fecha y hora de la cita es requerida')
+appointment_parser.add_argument('motivo', type=str, required=False)
+appointment_parser.add_argument('estado', type=str, required=False)
+
+class AppointmentListResource(Resource):
+    @login_required
+    def get(self):
+        """Obtener todas las citas del doctor logueado"""
+        appointments = Appointment.query.filter_by(doctor_id=session['user_id']).all()
+        return jsonify([{
+            'id': app.id,
+            'patient_id': app.patient_id,
+            'patient_name': app.patient.nombre,
+            'fecha_cita': app.fecha_cita.isoformat(),
+            'motivo': app.motivo,
+            'estado': app.estado,
+            'created_at': app.created_at.isoformat()
+        } for app in appointments])
+
+    @login_required
+    def post(self):
+        """Crear una nueva cita"""
+        args = appointment_parser.parse_args()
+        
+        try:
+            fecha_cita_obj = datetime.strptime(args['fecha_cita'], '%Y-%m-%dT%H:%M')
+            if fecha_cita_obj < datetime.now():
+                return {'message': 'La fecha de la cita no puede ser en el pasado'}, 400
+        except ValueError:
+            return {'message': 'Formato de fecha y hora incorrecto. Usa YYYY-MM-DDTHH:MM'}, 400
+
+        # Verificar que el paciente pertenece al doctor
+        patient = Patient.query.filter_by(id=args['patient_id'], doctor_id=session['user_id']).first()
+        if not patient:
+            return {'message': 'Paciente no encontrado o no pertenece a este doctor'}, 404
+
+        new_appointment = Appointment(
+            patient_id=args['patient_id'],
+            doctor_id=session['user_id'],
+            fecha_cita=fecha_cita_obj,
+            motivo=args.get('motivo'),
+            estado=args.get('estado', 'Programada')
+        )
+
+        try:
+            db.session.add(new_appointment)
+            db.session.commit()
+            
+            # Enviar correo de confirmación
+            try:
+                msg = Message(
+                    subject='Confirmación de Cita Médica',
+                    recipients=[patient.email],
+                    html=f"""
+                    <h1>Confirmación de Cita Médica</h1>
+                    <p>Estimado(a) {patient.nombre},</p>
+                    <p>Se ha programado una cita médica con el Dr(a). {new_appointment.doctor.nombrecompleto}.</p>
+                    <p><strong>Detalles de la cita:</strong></p>
+                    <ul>
+                        <li>Fecha y hora: {fecha_cita_obj.strftime('%d/%m/%Y %H:%M')}</li>
+                        <li>Motivo: {args.get('motivo', 'No especificado')}</li>
+                        <li>Especialidad: {new_appointment.doctor.especialidad}</li>
+                    </ul>
+                    <p>Por favor, asegúrese de llegar a tiempo.</p>
+                    """
+                )
+                mail.send(msg)
+            except Exception as email_error:
+                print(f"Error al enviar el correo: {email_error}")
+
+            return {
+                'message': 'Cita creada exitosamente',
+                'appointment': {
+                    'id': new_appointment.id,
+                    'patient_id': new_appointment.patient_id,
+                    'fecha_cita': new_appointment.fecha_cita.isoformat(),
+                    'motivo': new_appointment.motivo,
+                    'estado': new_appointment.estado
+                }
+            }, 201
+        except Exception as e:
+            db.session.rollback()
+            return {'message': 'Error al crear la cita', 'error': str(e)}, 500
+
+class AppointmentResource(Resource):
+    @login_required
+    def get(self, appointment_id):
+        """Obtener una cita específica"""
+        appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
+        if not appointment:
+            return {'message': 'Cita no encontrada'}, 404
+            
+        return jsonify({
+            'id': appointment.id,
+            'patient_id': appointment.patient_id,
+            'patient_name': appointment.patient.nombre,
+            'fecha_cita': appointment.fecha_cita.isoformat(),
+            'motivo': appointment.motivo,
+            'estado': appointment.estado,
+            'created_at': appointment.created_at.isoformat()
+        })
+
+    @login_required
+    def put(self, appointment_id):
+        """Actualizar una cita existente"""
+        appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
+        if not appointment:
+            return {'message': 'Cita no encontrada'}, 404
+            
+        if appointment.estado != 'Programada':
+            return {'message': 'Solo se pueden editar citas programadas'}, 400
+            
+        args = appointment_parser.parse_args()
+        
+        try:
+            fecha_cita_obj = datetime.strptime(args['fecha_cita'], '%Y-%m-%dT%H:%M')
+            if fecha_cita_obj < datetime.now():
+                return {'message': 'La fecha de la cita no puede ser en el pasado'}, 400
+        except ValueError:
+            return {'message': 'Formato de fecha y hora incorrecto. Usa YYYY-MM-DDTHH:MM'}, 400
+
+        # Verificar que el paciente pertenece al doctor
+        patient = Patient.query.filter_by(id=args['patient_id'], doctor_id=session['user_id']).first()
+        if not patient:
+            return {'message': 'Paciente no encontrado o no pertenece a este doctor'}, 404
+
+        appointment.patient_id = args['patient_id']
+        appointment.fecha_cita = fecha_cita_obj
+        appointment.motivo = args.get('motivo', appointment.motivo)
+        
+        try:
+            db.session.commit()
+            
+            # Enviar correo de notificación
+            try:
+                msg = Message(
+                    subject='Actualización de Cita Médica',
+                    recipients=[patient.email],
+                    html=f"""
+                    <h1>Actualización de Cita Médica</h1>
+                    <p>Estimado(a) {patient.nombre},</p>
+                    <p>Su cita con el Dr(a). {appointment.doctor.nombrecompleto} ha sido actualizada.</p>
+                    <p><strong>Nuevos detalles:</strong></p>
+                    <ul>
+                        <li>Fecha y hora: {fecha_cita_obj.strftime('%d/%m/%Y %H:%M')}</li>
+                        <li>Motivo: {args.get('motivo', 'No especificado')}</li>
+                    </ul>
+                    """
+                )
+                mail.send(msg)
+            except Exception as email_error:
+                print(f"Error al enviar el correo: {email_error}")
+            
+            return {
+                'message': 'Cita actualizada exitosamente',
+                'appointment': {
+                    'id': appointment.id,
+                    'patient_id': appointment.patient_id,
+                    'fecha_cita': appointment.fecha_cita.isoformat(),
+                    'motivo': appointment.motivo,
+                    'estado': appointment.estado
+                }
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'message': 'Error al actualizar la cita', 'error': str(e)}, 500
+
+    @login_required
+    def delete(self, appointment_id):
+        """Cancelar una cita"""
+        appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
+        if not appointment:
+            return {'message': 'Cita no encontrada'}, 404
+            
+        if appointment.estado == 'Cancelada':
+            return {'message': 'La cita ya está cancelada'}, 400
+            
+        try:
+            appointment.estado = 'Cancelada'
+            db.session.commit()
+            
+            # Enviar correo de notificación
+            try:
+                msg = Message(
+                    subject='Cancelación de Cita Médica',
+                    recipients=[appointment.patient.email],
+                    html=f"""
+                    <h1>Cancelación de Cita Médica</h1>
+                    <p>Estimado(a) {appointment.patient.nombre},</p>
+                    <p>Su cita con el Dr(a). {appointment.doctor.nombrecompleto} ha sido cancelada.</p>
+                    <p><strong>Detalles de la cita cancelada:</strong></p>
+                    <ul>
+                        <li>Fecha y hora: {appointment.fecha_cita.strftime('%d/%m/%Y %H:%M')}</li>
+                        <li>Motivo: {appointment.motivo or 'No especificado'}</li>
+                    </ul>
+                    """
+                )
+                mail.send(msg)
+            except Exception as email_error:
+                print(f"Error al enviar el correo: {email_error}")
+            
+            return {'message': 'Cita cancelada exitosamente'}
+        except Exception as e:
+            db.session.rollback()
+            return {'message': 'Error al cancelar la cita', 'error': str(e)}, 500
+
+# Añadir los recursos a la API
+api.add_resource(AppointmentListResource, '/citas')
+api.add_resource(AppointmentResource, '/citas/<int:appointment_id>')
 
 # ------------------- Rutas de autenticación ------------------- #
 
@@ -469,194 +693,136 @@ def eliminar_paciente(patient_id):
 @app.route('/agregar_cita/<int:patient_id>', methods=['GET', 'POST'])
 @login_required
 def agregar_cita(patient_id):
-    """Programar una nueva cita para un paciente."""
+    """Mostrar formulario para programar una nueva cita (frontend)"""
     patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
     if not patient:
         flash('Paciente no encontrado', 'error')
         return redirect(url_for('ver_pacientes'))
-
+    
     if request.method == 'POST':
-        fecha_cita = request.form['fecha_cita']
-        motivo = request.form.get('motivo')
-
-        try:
-            fecha_cita_obj = datetime.strptime(fecha_cita, '%Y-%m-%dT%H:%M')
-            if fecha_cita_obj < datetime.now():
-                flash('La fecha de la cita no puede ser en el pasado.', 'error')
-                return redirect(url_for('agregar_cita', patient_id=patient_id))
-        except ValueError:
-            flash('Formato de fecha y hora incorrecto.', 'error')
-            return redirect(url_for('agregar_cita', patient_id=patient_id))
-
-        doctor = User.query.get(session['user_id'])
-
-        new_appointment = Appointment(
-            patient_id=patient_id,
-            doctor_id=session['user_id'],
-            fecha_cita=fecha_cita_obj,
-            motivo=motivo,
-            estado='Programada'
+        # Enviar datos a la API
+        response = requests.post(
+            f'http://{request.host}/api/citas',
+            json={
+                'patient_id': patient_id,
+                'fecha_cita': request.form['fecha_cita'],
+                'motivo': request.form.get('motivo')
+            },
+            cookies=request.cookies
         )
-
-        try:
-            db.session.add(new_appointment)
-            db.session.commit()
-
-            # Enviar correo de confirmación de cita
-            try:
-                msg = Message(
-                    subject='Confirmación de Cita Médica',
-                    recipients=[patient.email],
-                    html=f"""
-                    <h1>Confirmación de Cita Médica</h1>
-                    <p>Estimado(a) {patient.nombre},</p>
-                    <p>Se ha programado una cita médica con el Dr(a). {doctor.nombrecompleto}.</p>
-                    <p><strong>Detalles de la cita:</strong></p>
-                    <ul>
-                        <li>Fecha y hora: {fecha_cita_obj.strftime('%d/%m/%Y %H:%M')}</li>
-                        <li>Motivo: {motivo or 'No especificado'}</li>
-                        <li>Especialidad: {doctor.especialidad}</li>
-                    </ul>
-                    <p>Por favor, asegúrese de llegar a tiempo. Si necesita cancelar o reprogramar, contáctenos.</p>
-                    <br>
-                    <p>Atentamente,</p>
-                    <p>El equipo de Sistema de Citas Médicas</p>
-                    """
-                )
-                mail.send(msg)
-                flash('Cita programada exitosamente. Se ha enviado un correo de confirmación.', 'success')
-            except Exception as email_error:
-                print(f"Error al enviar el correo: {email_error}")
-                flash('Cita programada, pero no se pudo enviar el correo de confirmación.', 'warning')
-
-            return redirect(url_for('detalle_paciente', patient_id=patient_id))
-        except Exception as e:
-            db.session.rollback()
-            flash('Error al programar la cita', 'error')
-            print(e)
-
+        
+        data = response.json()
+        if response.status_code == 201:
+            flash('Cita programada exitosamente', 'success')
+            return redirect(url_for('ver_citas', patient_id=patient_id))
+        else:
+            flash(data.get('message', 'Error al programar la cita'), 'error')
+    
     return render_template('agregar_cita.html', patient=patient)
 
 @app.route('/ver_citas/<int:patient_id>')
 @login_required
 def ver_citas(patient_id):
-    """Mostrar lista de citas de un paciente."""
+    """Mostrar lista de citas de un paciente (frontend)"""
     patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
     if not patient:
         flash('Paciente no encontrado', 'error')
         return redirect(url_for('ver_pacientes'))
     
-    return render_template('ver_citas.html', patient=patient)
+    # Obtener citas desde la API
+    response = requests.get(
+        f'http://{request.host}/api/citas',
+        cookies=request.cookies
+    )
+    
+    if response.status_code == 200:
+        all_appointments = response.json()
+        # Filtrar las citas del paciente específico
+        patient_appointments = [app for app in all_appointments if app['patient_id'] == patient_id]
+    else:
+        patient_appointments = []
+        flash('Error al obtener las citas', 'error')
+    
+    return render_template('ver_citas.html', patient=patient, appointments=patient_appointments)
 
 @app.route('/editar_cita/<int:appointment_id>', methods=['GET', 'POST'])
 @login_required
 def editar_cita(appointment_id):
-    """Editar una cita existente."""
-    appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
-    if not appointment:
+    """Mostrar formulario para editar una cita (frontend)"""
+    # Obtener la cita desde la API
+    response = requests.get(
+        f'http://{request.host}/api/citas/{appointment_id}',
+        cookies=request.cookies
+    )
+    
+    if response.status_code != 200:
         flash('Cita no encontrada', 'error')
         return redirect(url_for('ver_pacientes'))
     
-    if appointment.estado != 'Programada':
-        flash('Solo se pueden editar citas programadas', 'error')
-        return redirect(url_for('ver_citas', patient_id=appointment.patient_id))
+    appointment_data = response.json()
+    patient = Patient.query.get(appointment_data['patient_id'])
     
     if request.method == 'POST':
-        fecha_cita = request.form['fecha_cita']
-        motivo = request.form.get('motivo')
+        # Actualizar la cita mediante la API
+        response = requests.put(
+            f'http://{request.host}/api/citas/{appointment_id}',
+            json={
+                'patient_id': appointment_data['patient_id'],
+                'fecha_cita': request.form['fecha_cita'],
+                'motivo': request.form.get('motivo')
+            },
+            cookies=request.cookies
+        )
         
-        try:
-            fecha_cita_obj = datetime.strptime(fecha_cita, '%Y-%m-%dT%H:%M')
-            if fecha_cita_obj < datetime.now():
-                flash('La fecha de la cita no puede ser en el pasado.', 'error')
-                return redirect(url_for('editar_cita', appointment_id=appointment_id))
-            
-            appointment.fecha_cita = fecha_cita_obj
-            appointment.motivo = motivo
-            db.session.commit()
-            
-            # Enviar correo de notificación al paciente
-            try:
-                msg = Message(
-                    subject='Actualización de Cita Médica',
-                    recipients=[appointment.patient.email],
-                    html=f"""
-                    <h1>Actualización de Cita Médica</h1>
-                    <p>Estimado(a) {appointment.patient.nombre},</p>
-                    <p>Su cita con el Dr(a). {appointment.doctor.nombrecompleto} ha sido reprogramada.</p>
-                    <p><strong>Nuevos detalles de la cita:</strong></p>
-                    <ul>
-                        <li>Fecha y hora: {fecha_cita_obj.strftime('%d/%m/%Y %H:%M')}</li>
-                        <li>Motivo: {motivo or 'No especificado'}</li>
-                    </ul>
-                    <p>Por favor, asegúrese de llegar a tiempo. Si necesita cancelar o reprogramar, contáctenos.</p>
-                    <br>
-                    <p>Atentamente,</p>
-                    <p>El equipo de Sistema de Citas Médicas</p>
-                    """
-                )
-                mail.send(msg)
-                flash('Cita actualizada exitosamente. Se ha enviado una notificación al paciente.', 'success')
-            except Exception as email_error:
-                print(f"Error al enviar el correo: {email_error}")
-                flash('Cita actualizada, pero no se pudo enviar la notificación por correo.', 'warning')
-            
-            return redirect(url_for('ver_citas', patient_id=appointment.patient_id))
-        
-        except ValueError:
-            flash('Formato de fecha y hora incorrecto.', 'error')
-        except Exception as e:
-            db.session.rollback()
-            flash('Error al actualizar la cita', 'error')
-            print(e)
+        data = response.json()
+        if response.status_code == 200:
+            flash('Cita actualizada exitosamente', 'success')
+            return redirect(url_for('ver_citas', patient_id=appointment_data['patient_id']))
+        else:
+            flash(data.get('message', 'Error al actualizar la cita'), 'error')
     
-    return render_template('editar_cita.html', appointment=appointment, patient=appointment.patient)
+    # Convertir los datos de la API a un objeto Appointment para el template
+    class MockAppointment:
+        def __init__(self, data):
+            self.id = data['id']
+            self.patient_id = data['patient_id']
+            self.fecha_cita = datetime.strptime(data['fecha_cita'], '%Y-%m-%dT%H:%M:%S')
+            self.motivo = data['motivo']
+            self.estado = data['estado']
+            self.patient = patient
+            self.doctor = User.query.get(session['user_id'])
+    
+    appointment = MockAppointment(appointment_data)
+    return render_template('editar_cita.html', appointment=appointment, patient=patient)
 
 @app.route('/cancelar_cita/<int:appointment_id>', methods=['POST'])
 @login_required
 def cancelar_cita(appointment_id):
-    """Cancelar una cita."""
-    appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
-    if not appointment:
+    """Cancelar una cita (frontend)"""
+    # Obtener la cita primero para redirigir al paciente correcto
+    response = requests.get(
+        f'http://{request.host}/api/citas/{appointment_id}',
+        cookies=request.cookies
+    )
+    
+    if response.status_code != 200:
         flash('Cita no encontrada', 'error')
         return redirect(url_for('ver_pacientes'))
     
-    try:
-        appointment.estado = 'Cancelada'
-        db.session.commit()
-        
-        # Enviar correo de notificación al paciente
-        try:
-            msg = Message(
-                subject='Cancelación de Cita Médica',
-                recipients=[appointment.patient.email],
-                html=f"""
-                <h1>Notificación de Cancelación de Cita</h1>
-                <p>Estimado(a) {appointment.patient.nombre},</p>
-                <p>La cita programada con el Dr(a). {appointment.doctor.nombrecompleto} ha sido cancelada.</p>
-                <p><strong>Detalles de la cita:</strong></p>
-                <ul>
-                    <li>Fecha y hora: {appointment.fecha_cita.strftime('%d/%m/%Y %H:%M')}</li>
-                    <li>Motivo: {appointment.motivo or 'No especificado'}</li>
-                </ul>
-                <p>Si desea reprogramar, por favor contáctenos.</p>
-                <br>
-                <p>Atentamente,</p>
-                <p>El equipo de Sistema de Citas Médicas</p>
-                """
-            )
-            mail.send(msg)
-            flash('Cita cancelada exitosamente. Se ha enviado una notificación al paciente.', 'success')
-        except Exception as email_error:
-            print(f"Error al enviar el correo: {email_error}")
-            flash('Cita cancelada, pero no se pudo enviar la notificación por correo.', 'warning')
+    appointment_data = response.json()
     
-    except Exception as e:
-        db.session.rollback()
-        flash('Error al cancelar la cita', 'error')
-        print(e)
+    # Cancelar la cita mediante la API
+    response = requests.delete(
+        f'http://{request.host}/api/citas/{appointment_id}',
+        cookies=request.cookies
+    )
     
-    return redirect(url_for('ver_citas', patient_id=appointment.patient_id))
+    if response.status_code == 200:
+        flash('Cita cancelada exitosamente', 'success')
+    else:
+        flash(response.json().get('message', 'Error al cancelar la cita'), 'error')
+    
+    return redirect(url_for('ver_citas', patient_id=appointment_data['patient_id']))
 
 # ------------------- Rutas de estudios médicos ------------------- #
 

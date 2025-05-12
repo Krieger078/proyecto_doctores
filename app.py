@@ -1,26 +1,34 @@
-#                   Citas medicas                       #
-#       Encargado del proyecto (Scrum Master):          #   
+#                   Citas Médicas                       #
+#       Encargado del proyecto (Scrum Master):          #
 #              Oscar Delgadillo Valdés                  #
 #                   Integrantes:                        #
-#             -Oscar Delgadillo Valdés                  #
-#           -Sandra Camila Flores Vargas                #
-#          -Daniela Rocio Patiño Martinez               #
-#               -Aaron Reyna Gomez                      #
-#            -David Arturo Moreno Razo                  #
+#             - Oscar Delgadillo Valdés                 #
+#             - Sandra Camila Flores Vargas             #
+#             - Daniela Rocio Patiño Martinez           #
+#             - Aaron Reyna Gomez                       #
+#             - David Arturo Moreno Razo                #
 #                                                       #
 #                   Descripción:                        #
-#   Este archivo controla todas las funciones de la     # 
-#   web, funciones para eliminar, agregar, editar y     #
-#   mostrar pacientes. También incluye funciones para   #
-#   iniciar sesión y registrarse.                       #
+#   Este archivo controla todas las funciones de la     #
+#   aplicación web, incluyendo agregar, editar,         #
+#   eliminar y mostrar pacientes, así como gestionar    #
+#   citas, estudios médicos, inicio de sesión y         #
+#   registro de usuarios.                               #
 
+# Importaciones estándar de Python
+import os
+from datetime import datetime
+
+# Importaciones de terceros
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
 from werkzeug.utils import secure_filename
-import os
+from functools import wraps
+import ssl
 
+# Inicialización de la aplicación Flask
 app = Flask(__name__)
 app.secret_key = 'tu_clave_secreta'
 
@@ -28,23 +36,53 @@ app.secret_key = 'tu_clave_secreta'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:P1ng0r1nd05@localhost/proyecto_doctores'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+# Configuración de Flask-Mail
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'citasmedicascodad@gmail.com'
+app.config['MAIL_PASSWORD'] = 'mufq zzhp ytsa bogh'
+app.config['MAIL_DEFAULT_SENDER'] = 'citasmedicascodad@gmail.com'
+app.config['MAIL_DEBUG'] = True
 
-#Validación de los formatos, carpetas, etc.
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+# Configuración de SSL
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
-# Configuración de los archivos
+# Configuración de archivos
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx'}
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB es el límite
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB límite
+
+# Inicialización de extensiones
+db = SQLAlchemy(app)
+mail = Mail(app)
+mail.init_app(app)
 
 # Crear carpeta de uploads si no existe
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Modelo del Doctor
+# ------------------- Utilidades ------------------- #
+
+def allowed_file(filename):
+    """Valida si el archivo tiene una extensión permitida."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+def login_required(f):
+    """Decorador para requerir autenticación en rutas protegidas."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor inicia sesión para acceder a esta página', 'error')
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ------------------- Modelos ------------------- #
+
 class User(db.Model):
+    """Modelo para doctores."""
     __tablename__ = 'doctores'
     id = db.Column(db.Integer, primary_key=True)
     nombrecompleto = db.Column(db.String(150), nullable=False)
@@ -59,12 +97,14 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.nombrecompleto}>'
 
-# Modelo del Paciente (con campo "activo")
 class Patient(db.Model):
+    """Modelo para pacientes."""
     __tablename__ = 'pacientes'
     id = db.Column(db.Integer, primary_key=True)
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctores.id'), nullable=False)
     nombre = db.Column(db.String(150), nullable=False)
+    email = db.Column(db.String(150), nullable=False, unique=True)
+    telefono = db.Column(db.String(20), nullable=False)
     fecha_nacimiento = db.Column(db.Date, nullable=True)
     genero = db.Column(db.String(20), nullable=True)
     peso = db.Column(db.Float, nullable=True)
@@ -77,8 +117,25 @@ class Patient(db.Model):
     def __repr__(self):
         return f'<Patient {self.nombre}>'
 
-# Agregar los estudios medicos (añadir archivos)
+class Appointment(db.Model):
+    """Modelo para citas médicas."""
+    __tablename__ = 'citas'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('pacientes.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctores.id'), nullable=False)
+    fecha_cita = db.Column(db.DateTime, nullable=False)
+    motivo = db.Column(db.Text, nullable=True)
+    estado = db.Column(db.String(50), default='Programada', nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref='appointments')
+    doctor = db.relationship('User', backref='appointments')
+
+    def __repr__(self):
+        return f'<Appointment {self.id} for {self.patient.nombre}>'
+
 class MedicalStudy(db.Model):
+    """Modelo para estudios médicos."""
     __tablename__ = 'estudios_medicos'
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('pacientes.id'), nullable=False)
@@ -93,13 +150,16 @@ class MedicalStudy(db.Model):
     patient = db.relationship('Patient', backref='studies')
     doctor = db.relationship('User', backref='uploaded_studies')
 
-# Rutas
+# ------------------- Rutas de autenticación ------------------- #
+
 @app.route('/')
 def index():
+    """Página principal."""
     return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Iniciar sesión."""
     if request.method == 'POST':
         email = request.form['email']
         password_input = request.form['password']
@@ -107,13 +167,15 @@ def login():
         if user and check_password_hash(user.password, password_input):
             flash('Inicio de sesión exitoso', 'success')
             session['user_id'] = user.id
-            return redirect(url_for('dashboard'))
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('dashboard'))
         else:
             flash('Correo o contraseña incorrectos', 'error')
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """Registrar un nuevo doctor."""
     if request.method == 'POST':
         nombrecompleto = request.form['nombrecompleto']
         email = request.form['email']
@@ -129,6 +191,11 @@ def register():
             flash('La cédula profesional debe contener 7 u 8 dígitos.', 'error')
             return redirect(url_for('register'))
 
+        # Verificar si el correo ya está registrado
+        if User.query.filter_by(email=email).first():
+            flash('Este correo electrónico ya está registrado.', 'error')
+            return redirect(url_for('register'))
+
         hashed_password = generate_password_hash(password_input)
 
         new_user = User(
@@ -141,10 +208,39 @@ def register():
             especialidad=especialidad,
             password=hashed_password
         )
+
         try:
             db.session.add(new_user)
             db.session.commit()
-            flash('Registro exitoso. Ahora puedes iniciar sesión.', 'success')
+            
+            # Enviar correo electrónico de confirmación
+            try:
+                msg = Message(
+                    subject='Registro Exitoso - Sistema de Citas Médicas',
+                    recipients=[email],
+                    html=f"""
+                    <h1>¡Bienvenido(a) al Sistema de Citas Médicas!</h1>
+                    <p>Estimado(a) Dr(a). {nombrecompleto},</p>
+                    <p>Su registro en nuestro sistema ha sido exitoso.</p>
+                    <p><strong>Datos de su cuenta:</strong></p>
+                    <ul>
+                        <li>Nombre: {nombrecompleto}</li>
+                        <li>Especialidad: {especialidad}</li>
+                        <li>Correo electrónico: {email}</li>
+                    </ul>
+                    <p>Ahora puede iniciar sesión en nuestro sistema y comenzar a gestionar sus pacientes.</p>
+                    <p>Si no realizó este registro, por favor ignore este mensaje.</p>
+                    <br>
+                    <p>Atentamente,</p>
+                    <p>El equipo de Sistema de Citas Médicas</p>
+                    """
+                )
+                mail.send(msg)
+                flash('Registro exitoso. Se ha enviado un correo de confirmación.', 'success')
+            except Exception as email_error:
+                print(f"Error al enviar el correo: {email_error}")
+                flash('Registro exitoso, pero no se pudo enviar el correo de confirmación.', 'warning')
+            
             return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
@@ -152,20 +248,31 @@ def register():
             print(e)
     return render_template('register.html')
 
+@app.route('/logout')
+def logout():
+    """Cerrar sesión."""
+    session.pop('user_id', None)
+    flash('Sesión cerrada correctamente', 'success')
+    return redirect(url_for('index'))
+
+# ------------------- Rutas del dashboard ------------------- #
+
 @app.route('/dashboard')
+@login_required
 def dashboard():
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
+    """Panel principal del doctor."""
     return render_template('dashboard.html')
 
+# ------------------- Rutas de pacientes ------------------- #
+
 @app.route('/agregar_paciente', methods=['GET', 'POST'])
+@login_required
 def agregar_paciente():
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
+    """Agregar un nuevo paciente."""
     if request.method == 'POST':
         nombre = request.form['nombre']
+        email = request.form['email']
+        telefono = request.form['telefono']
         fecha_nacimiento = request.form.get('fecha_nacimiento')
         genero = request.form['genero']
         peso = request.form.get('peso')
@@ -173,10 +280,19 @@ def agregar_paciente():
         condiciones_medicas = request.form.get('condiciones_medicas')
         notas = request.form.get('notas')
 
+        # Validar formato de teléfono (10 dígitos)
+        if not telefono.isdigit() or len(telefono) != 10:
+            flash('El número de teléfono debe contener 10 dígitos.', 'error')
+            return redirect(url_for('agregar_paciente'))
+
+        # Verificar si el correo ya está registrado
+        if Patient.query.filter_by(email=email).first():
+            flash('Este correo electrónico ya está registrado.', 'error')
+            return redirect(url_for('agregar_paciente'))
+
         fecha_obj = None
         if fecha_nacimiento:
             try:
-                from datetime import datetime
                 fecha_obj = datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()
             except ValueError:
                 flash('Formato de fecha incorrecto. Usa AAAA-MM-DD.', 'error')
@@ -192,23 +308,53 @@ def agregar_paciente():
         # Obtenemos la información del doctor que está logueado
         doctor = User.query.get(session['user_id'])
 
-        # Al crear el paciente, asignamos la especialidad del doctor
+        # Creamos el paciente
         new_patient = Patient(
             doctor_id=session['user_id'],
             nombre=nombre,
+            email=email,
+            telefono=telefono,
             fecha_nacimiento=fecha_obj,
             genero=genero,
             peso=peso,
             altura=altura,
             condiciones_medicas=condiciones_medicas,
             notas=notas,
-            especialidad=doctor.especialidad  # Asignamos la especialidad del doctor
+            especialidad=doctor.especialidad
         )
 
         try:
             db.session.add(new_patient)
             db.session.commit()
-            flash('Paciente agregado exitosamente', 'success')
+
+            # Enviar correo de confirmación al paciente
+            try:
+                msg = Message(
+                    subject='Bienvenido al Sistema de Citas Médicas',
+                    recipients=[email],
+                    html=f"""
+                    <h1>¡Bienvenido(a) al Sistema de Citas Médicas!</h1>
+                    <p>Estimado(a) {nombre},</p>
+                    <p>Ha sido registrado exitosamente en nuestro sistema por el Dr(a). {doctor.nombrecompleto}.</p>
+                    <p><strong>Datos registrados:</strong></p>
+                    <ul>
+                        <li>Nombre: {nombre}</li>
+                        <li>Correo electrónico: {email}</li>
+                        <li>Teléfono: {telefono}</li>
+                    </ul>
+                    <p>Recibirá notificaciones sobre sus citas médicas en este correo.</p>
+                    <p>Si no reconoce este registro, por favor contáctenos.</p>
+                    <br>
+                    <p>Atentamente,</p>
+                    <p>El equipo de Sistema de Citas Médicas</p>
+                    """
+                )
+                mail.send(msg)
+                flash('Paciente agregado exitosamente. Se ha enviado un correo de confirmación.', 'success')
+            except Exception as email_error:
+                print(f"Error al enviar el correo: {email_error}")
+                flash('Paciente agregado, pero no se pudo enviar el correo de confirmación.', 'warning')
+
             return redirect(url_for('dashboard'))
         except Exception as e:
             db.session.rollback()
@@ -216,68 +362,27 @@ def agregar_paciente():
             print(e)
     return render_template('agregar_paciente.html')
 
-
-# Mostrar solo pacientes activos
 @app.route('/ver_pacientes')
+@login_required
 def ver_pacientes():
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
+    """Mostrar lista de pacientes activos."""
     patients = Patient.query.filter_by(doctor_id=session['user_id'], activo=True).all()
     return render_template('ver_pacientes.html', patients=patients)
 
-# Lista de pacientes para eliminar (sólo activos)
-@app.route('/eliminar_paciente')
-def lista_eliminar_pacientes():
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
-    patients = Patient.query.filter_by(doctor_id=session['user_id'], activo=True).all()
-    return render_template('eliminar_paciente.html', patients=patients)
-
-# "Eliminar" paciente: cambiar estado a inactivo
-@app.route('/eliminar_paciente/<int:patient_id>', methods=['POST'])
-def eliminar_paciente(patient_id):
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
-    patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id'], activo=True).first()
-    if not patient:
-        flash('Paciente no encontrado o ya inactivo', 'error')
-        return redirect(url_for('lista_eliminar_pacientes'))
-    try:
-        patient.activo = False  # Marcar paciente como inactivo
-        db.session.commit()
-        flash('Paciente marcado como inactivo', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash('Error al actualizar el estado del paciente', 'error')
-        print(e)
-    return redirect(url_for('lista_eliminar_pacientes'))
-
 @app.route('/detalle_paciente/<int:patient_id>')
+@login_required
 def detalle_paciente(patient_id):
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
+    """Mostrar detalles de un paciente."""
     patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
     if not patient:
         flash('Paciente no encontrado', 'error')
         return redirect(url_for('ver_pacientes'))
     return render_template('detalle_paciente.html', patient=patient)
 
-@app.route('/logout')
-def logout():
-    session.pop('user_id', None)
-    flash('Sesión cerrada correctamente', 'success')
-    return redirect(url_for('index'))
-
 @app.route('/editar_paciente/<int:patient_id>', methods=['GET', 'POST'])
+@login_required
 def editar_paciente(patient_id):
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
-    
+    """Editar información de un paciente."""
     patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
     if not patient:
         flash('Paciente no encontrado', 'error')
@@ -285,7 +390,24 @@ def editar_paciente(patient_id):
     
     if request.method == 'POST':
         try:
-            patient.nombre = request.form['nombre']
+            nombre = request.form['nombre']
+            email = request.form['email']
+            telefono = request.form['telefono']
+
+            # Validar formato de teléfono
+            if not telefono.isdigit() or len(telefono) != 10:
+                flash('El número de teléfono debe contener 10 dígitos.', 'error')
+                return redirect(url_for('editar_paciente', patient_id=patient_id))
+
+            # Verificar si el correo ya está registrado por otro paciente
+            existing_patient = Patient.query.filter_by(email=email).first()
+            if existing_patient and existing_patient.id != patient.id:
+                flash('Este correo electrónico ya está registrado.', 'error')
+                return redirect(url_for('editar_paciente', patient_id=patient_id))
+
+            patient.nombre = nombre
+            patient.email = email
+            patient.telefono = telefono
             
             # Procesar fecha de nacimiento
             fecha_nacimiento = request.form.get('fecha_nacimiento')
@@ -317,13 +439,231 @@ def editar_paciente(patient_id):
     
     return render_template('editar_paciente.html', patient=patient)
 
-# Ruta para subir estudios médicos
-@app.route('/subir_estudio/<int:patient_id>', methods=['GET', 'POST'])
-def subir_estudio(patient_id):
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
+@app.route('/eliminar_paciente')
+@login_required
+def lista_eliminar_pacientes():
+    """Mostrar lista de pacientes activos para eliminar."""
+    patients = Patient.query.filter_by(doctor_id=session['user_id'], activo=True).all()
+    return render_template('eliminar_paciente.html', patients=patients)
+
+@app.route('/eliminar_paciente/<int:patient_id>', methods=['POST'])
+@login_required
+def eliminar_paciente(patient_id):
+    """Marcar un paciente como inactivo."""
+    patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id'], activo=True).first()
+    if not patient:
+        flash('Paciente no encontrado o ya inactivo', 'error')
+        return redirect(url_for('lista_eliminar_pacientes'))
+    try:
+        patient.activo = False
+        db.session.commit()
+        flash('Paciente marcado como inactivo', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error al actualizar el estado del paciente', 'error')
+        print(e)
+    return redirect(url_for('lista_eliminar_pacientes'))
+
+# ------------------- Rutas de citas ------------------- #
+
+@app.route('/agregar_cita/<int:patient_id>', methods=['GET', 'POST'])
+@login_required
+def agregar_cita(patient_id):
+    """Programar una nueva cita para un paciente."""
+    patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
+    if not patient:
+        flash('Paciente no encontrado', 'error')
+        return redirect(url_for('ver_pacientes'))
+
+    if request.method == 'POST':
+        fecha_cita = request.form['fecha_cita']
+        motivo = request.form.get('motivo')
+
+        try:
+            fecha_cita_obj = datetime.strptime(fecha_cita, '%Y-%m-%dT%H:%M')
+            if fecha_cita_obj < datetime.now():
+                flash('La fecha de la cita no puede ser en el pasado.', 'error')
+                return redirect(url_for('agregar_cita', patient_id=patient_id))
+        except ValueError:
+            flash('Formato de fecha y hora incorrecto.', 'error')
+            return redirect(url_for('agregar_cita', patient_id=patient_id))
+
+        doctor = User.query.get(session['user_id'])
+
+        new_appointment = Appointment(
+            patient_id=patient_id,
+            doctor_id=session['user_id'],
+            fecha_cita=fecha_cita_obj,
+            motivo=motivo,
+            estado='Programada'
+        )
+
+        try:
+            db.session.add(new_appointment)
+            db.session.commit()
+
+            # Enviar correo de confirmación de cita
+            try:
+                msg = Message(
+                    subject='Confirmación de Cita Médica',
+                    recipients=[patient.email],
+                    html=f"""
+                    <h1>Confirmación de Cita Médica</h1>
+                    <p>Estimado(a) {patient.nombre},</p>
+                    <p>Se ha programado una cita médica con el Dr(a). {doctor.nombrecompleto}.</p>
+                    <p><strong>Detalles de la cita:</strong></p>
+                    <ul>
+                        <li>Fecha y hora: {fecha_cita_obj.strftime('%d/%m/%Y %H:%M')}</li>
+                        <li>Motivo: {motivo or 'No especificado'}</li>
+                        <li>Especialidad: {doctor.especialidad}</li>
+                    </ul>
+                    <p>Por favor, asegúrese de llegar a tiempo. Si necesita cancelar o reprogramar, contáctenos.</p>
+                    <br>
+                    <p>Atentamente,</p>
+                    <p>El equipo de Sistema de Citas Médicas</p>
+                    """
+                )
+                mail.send(msg)
+                flash('Cita programada exitosamente. Se ha enviado un correo de confirmación.', 'success')
+            except Exception as email_error:
+                print(f"Error al enviar el correo: {email_error}")
+                flash('Cita programada, pero no se pudo enviar el correo de confirmación.', 'warning')
+
+            return redirect(url_for('detalle_paciente', patient_id=patient_id))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error al programar la cita', 'error')
+            print(e)
+
+    return render_template('agregar_cita.html', patient=patient)
+
+@app.route('/ver_citas/<int:patient_id>')
+@login_required
+def ver_citas(patient_id):
+    """Mostrar lista de citas de un paciente."""
+    patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
+    if not patient:
+        flash('Paciente no encontrado', 'error')
+        return redirect(url_for('ver_pacientes'))
     
+    return render_template('ver_citas.html', patient=patient)
+
+@app.route('/editar_cita/<int:appointment_id>', methods=['GET', 'POST'])
+@login_required
+def editar_cita(appointment_id):
+    """Editar una cita existente."""
+    appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
+    if not appointment:
+        flash('Cita no encontrada', 'error')
+        return redirect(url_for('ver_pacientes'))
+    
+    if appointment.estado != 'Programada':
+        flash('Solo se pueden editar citas programadas', 'error')
+        return redirect(url_for('ver_citas', patient_id=appointment.patient_id))
+    
+    if request.method == 'POST':
+        fecha_cita = request.form['fecha_cita']
+        motivo = request.form.get('motivo')
+        
+        try:
+            fecha_cita_obj = datetime.strptime(fecha_cita, '%Y-%m-%dT%H:%M')
+            if fecha_cita_obj < datetime.now():
+                flash('La fecha de la cita no puede ser en el pasado.', 'error')
+                return redirect(url_for('editar_cita', appointment_id=appointment_id))
+            
+            appointment.fecha_cita = fecha_cita_obj
+            appointment.motivo = motivo
+            db.session.commit()
+            
+            # Enviar correo de notificación al paciente
+            try:
+                msg = Message(
+                    subject='Actualización de Cita Médica',
+                    recipients=[appointment.patient.email],
+                    html=f"""
+                    <h1>Actualización de Cita Médica</h1>
+                    <p>Estimado(a) {appointment.patient.nombre},</p>
+                    <p>Su cita con el Dr(a). {appointment.doctor.nombrecompleto} ha sido reprogramada.</p>
+                    <p><strong>Nuevos detalles de la cita:</strong></p>
+                    <ul>
+                        <li>Fecha y hora: {fecha_cita_obj.strftime('%d/%m/%Y %H:%M')}</li>
+                        <li>Motivo: {motivo or 'No especificado'}</li>
+                    </ul>
+                    <p>Por favor, asegúrese de llegar a tiempo. Si necesita cancelar o reprogramar, contáctenos.</p>
+                    <br>
+                    <p>Atentamente,</p>
+                    <p>El equipo de Sistema de Citas Médicas</p>
+                    """
+                )
+                mail.send(msg)
+                flash('Cita actualizada exitosamente. Se ha enviado una notificación al paciente.', 'success')
+            except Exception as email_error:
+                print(f"Error al enviar el correo: {email_error}")
+                flash('Cita actualizada, pero no se pudo enviar la notificación por correo.', 'warning')
+            
+            return redirect(url_for('ver_citas', patient_id=appointment.patient_id))
+        
+        except ValueError:
+            flash('Formato de fecha y hora incorrecto.', 'error')
+        except Exception as e:
+            db.session.rollback()
+            flash('Error al actualizar la cita', 'error')
+            print(e)
+    
+    return render_template('editar_cita.html', appointment=appointment, patient=appointment.patient)
+
+@app.route('/cancelar_cita/<int:appointment_id>', methods=['POST'])
+@login_required
+def cancelar_cita(appointment_id):
+    """Cancelar una cita."""
+    appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
+    if not appointment:
+        flash('Cita no encontrada', 'error')
+        return redirect(url_for('ver_pacientes'))
+    
+    try:
+        appointment.estado = 'Cancelada'
+        db.session.commit()
+        
+        # Enviar correo de notificación al paciente
+        try:
+            msg = Message(
+                subject='Cancelación de Cita Médica',
+                recipients=[appointment.patient.email],
+                html=f"""
+                <h1>Notificación de Cancelación de Cita</h1>
+                <p>Estimado(a) {appointment.patient.nombre},</p>
+                <p>La cita programada con el Dr(a). {appointment.doctor.nombrecompleto} ha sido cancelada.</p>
+                <p><strong>Detalles de la cita:</strong></p>
+                <ul>
+                    <li>Fecha y hora: {appointment.fecha_cita.strftime('%d/%m/%Y %H:%M')}</li>
+                    <li>Motivo: {appointment.motivo or 'No especificado'}</li>
+                </ul>
+                <p>Si desea reprogramar, por favor contáctenos.</p>
+                <br>
+                <p>Atentamente,</p>
+                <p>El equipo de Sistema de Citas Médicas</p>
+                """
+            )
+            mail.send(msg)
+            flash('Cita cancelada exitosamente. Se ha enviado una notificación al paciente.', 'success')
+        except Exception as email_error:
+            print(f"Error al enviar el correo: {email_error}")
+            flash('Cita cancelada, pero no se pudo enviar la notificación por correo.', 'warning')
+    
+    except Exception as e:
+        db.session.rollback()
+        flash('Error al cancelar la cita', 'error')
+        print(e)
+    
+    return redirect(url_for('ver_citas', patient_id=appointment.patient_id))
+
+# ------------------- Rutas de estudios médicos ------------------- #
+
+@app.route('/subir_estudio/<int:patient_id>', methods=['GET', 'POST'])
+@login_required
+def subir_estudio(patient_id):
+    """Subir un estudio médico para un paciente."""
     patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
     if not patient:
         flash('Paciente no encontrado', 'error')
@@ -376,13 +716,10 @@ def subir_estudio(patient_id):
     
     return render_template('subir_estudio.html', patient=patient)
 
-# Ruta para ver los estudios
 @app.route('/ver_estudios/<int:patient_id>')
+@login_required
 def ver_estudios(patient_id):
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
-    
+    """Mostrar lista de estudios médicos de un paciente."""
     patient = Patient.query.filter_by(id=patient_id, doctor_id=session['user_id']).first()
     if not patient:
         flash('Paciente no encontrado', 'error')
@@ -391,13 +728,10 @@ def ver_estudios(patient_id):
     studies = MedicalStudy.query.filter_by(patient_id=patient_id).order_by(MedicalStudy.upload_date.desc()).all()
     return render_template('ver_estudios.html', patient=patient, studies=studies)
 
-# Ruta para descargar estudios médicos
 @app.route('/descargar_estudio/<int:study_id>')
+@login_required
 def descargar_estudio(study_id):
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
-    
+    """Descargar un estudio médico."""
     study = MedicalStudy.query.filter_by(id=study_id, doctor_id=session['user_id']).first()
     if not study:
         flash('Estudio no encontrado', 'error')
@@ -406,13 +740,10 @@ def descargar_estudio(study_id):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], study.filename)
     return send_file(filepath, as_attachment=True, download_name=study.original_filename)
 
-# Ruta para eliminar estudios médicos
 @app.route('/eliminar_estudio/<int:study_id>', methods=['POST'])
+@login_required
 def eliminar_estudio(study_id):
-    if 'user_id' not in session:
-        flash('Debes iniciar sesión primero', 'error')
-        return redirect(url_for('login'))
-    
+    """Eliminar un estudio médico."""
     study = MedicalStudy.query.filter_by(id=study_id, doctor_id=session['user_id']).first()
     if not study:
         flash('Estudio no encontrado', 'error')
@@ -432,6 +763,8 @@ def eliminar_estudio(study_id):
         print(e)
     
     return redirect(url_for('ver_estudios', patient_id=study.patient_id))
+
+# ------------------- Ejecución de la aplicación ------------------- #
 
 if __name__ == '__main__':
     with app.app_context():

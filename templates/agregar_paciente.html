@@ -24,17 +24,24 @@
               <label for="nombre">Nombre Completo *</label>
               <input type="text" id="nombre" name="nombre" placeholder="Ej: María González López" required>
             </div>
-            
+            <div class="form-group">
+              <label for="email">Correo Electrónico *</label>
+              <input type="email" id="email" name="email" placeholder="Ej: paciente@correo.com" required>
+            </div>
+            <div class="form-group">
+              <label for="telefono">Teléfono *</label>
+              <input type="tel" id="telefono" name="telefono" placeholder="Ej: 1234567890" pattern="[0-9]{10}" required>
+            </div>
             <div class="form-group">
               <label for="fecha_nacimiento">Fecha de Nacimiento</label>
               <input type="text" id="fecha_nacimiento" name="fecha_nacimiento" placeholder="Seleccione fecha">
             </div>
-            
             <div class="form-group">
               <label for="genero">Género</label>
               <select id="genero" name="genero">
                 <option value="">Seleccione...</option>
                 <option value="masculino">Masculino</option>
+               Ghost
                 <option value="femenino">Femenino</option>
                 <option value="otro">Otro</option>
                 <option value="no_especificado">Prefiero no decir</option>
@@ -53,7 +60,6 @@
                 <span class="unit">kg</span>
               </div>
             </div>
-            
             <div class="form-group">
               <label for="altura">Altura (m)</label>
               <div class="input-unit">
@@ -61,7 +67,6 @@
                 <span class="unit">m</span>
               </div>
             </div>
-            
             <div class="form-group form-full-width">
               <label for="condiciones_medicas">Condiciones Médicas</label>
               <div class="textarea-container">
@@ -98,7 +103,6 @@
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
   <script>
-    // Inicializar datepicker
     flatpickr("#fecha_nacimiento", {
       locale: "es",
       dateFormat: "Y-m-d",
@@ -107,7 +111,6 @@
       allowInput: true
     });
 
-    // Contador de caracteres
     const setupCounter = (textareaId, counterId, maxLength) => {
       const textarea = document.getElementById(textareaId);
       const counter = document.getElementById(counterId);

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Citas de {{ patient.nombre }} | Sistema Médico</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="patients-container">
+    <div class="studies-header">
+      <h1><i class="fas fa-calendar-alt"></i> Citas de {{ patient.nombre }}</h1>
+      <div class="studies-header-actions">
+        <a href="{{ url_for('agregar_cita', patient_id=patient.id) }}" class="btn-study btn-new-study">
+          <i class="fas fa-plus"></i> Nueva Cita
+        </a>
+        <a href="{{ url_for('detalle_paciente', patient_id=patient.id) }}" class="btn-study btn-back-patient">
+          <i class="fas fa-arrow-left"></i> Volver al Paciente
+        </a>
+      </div>
+    </div>
+
+    {% if patient.appointments %}
+    <div class="study-list">
+      {% for appointment in patient.appointments %}
+      <div class="study-item">
+        <div class="study-info">
+          <div class="study-title">
+            Cita {{ appointment.estado }} - {{ appointment.fecha_cita.strftime('%d/%m/%Y %H:%M') }}
+          </div>
+          <div class="study-meta">
+            <span><i class="fas fa-user-md"></i> Dr(a). {{ appointment.doctor.nombrecompleto }}</span>
+            <span><i class="fas fa-stethoscope"></i> {{ appointment.doctor.especialidad }}</span>
+          </div>
+          {% if appointment.motivo %}
+          <div class="study-description">
+            Motivo: {{ appointment.motivo }}
+          </div>
+          {% endif %}
+        </div>
+        <div class="study-actions">
+          {% if appointment.estado == 'Programada' %}
+          <a href="{{ url_for('editar_cita', appointment_id=appointment.id) }}" class="btn-action edit" title="Reprogramar">
+            <i class="fas fa-edit"></i>
+          </a>
+          <form action="{{ url_for('cancelar_cita', appointment_id=appointment.id) }}" method="POST" class="delete-form">
+            <button type="submit" class="btn-action delete" title="Cancelar Cita">
+              <i class="fas fa-times"></i>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-patients">
+      <i class="fas fa-calendar-times"></i>
+      <h3>No hay citas registradas</h3>
+      <p>Comience programando una nueva cita</p>
+      <a href="{{ url_for('agregar_cita', patient_id=patient.id) }}" class="btn-add">
+        <i class="fas fa-plus"></i> Programar Primera Cita
+      </a>
+    </div>
+    {% endif %}
+
+    <div class="patients-footer">
+      <a href="{{ url_for('detalle_paciente', patient_id=patient.id) }}" class="btn-back">
+        <i class="fas fa-arrow-left"></i> Volver al Paciente
+      </a>
+    </div>
+  </div>
+</body>
+</html>

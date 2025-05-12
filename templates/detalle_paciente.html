@@ -20,12 +20,31 @@
       </a>
     </div>
   </div>
+  <div class="form-section">
+    <h2 class="form-section-title"><i class="fas fa-calendar-alt"></i> Citas Médicas</h2>
+    <div class="patient-actions">
+      <a href="{{ url_for('ver_citas', patient_id=patient.id) }}" class="btn btn-primary">
+        <i class="fas fa-calendar-check"></i> Ver Citas
+      </a>
+      <a href="{{ url_for('agregar_cita', patient_id=patient.id) }}" class="btn btn-secondary">
+        <i class="fas fa-calendar-plus"></i> Programar Cita
+      </a>
+    </div>
+  </div>
   <div class="patient-detail-container">
       <h1><i class="fas fa-user-injured"></i> Detalles del Paciente</h1>
       <ul class="patient-detail-list">
          <li class="patient-detail-item">
              <strong>Nombre:</strong>
              <p>{{ patient.nombre }}</p>
+         </li>
+         <li class="patient-detail-item">
+             <strong>Correo Electrónico:</strong>
+             <p>{{ patient.email }}</p>
+         </li>
+         <li class="patient-detail-item">
+             <strong>Teléfono:</strong>
+             <p>{{ patient.telefono }}</p>
          </li>
          {% if patient.fecha_nacimiento %}
          <li class="patient-detail-item">

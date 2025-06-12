@@ -27,6 +27,7 @@ from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
+from flasgger import Swagger
 import ssl
 import requests
 
@@ -171,7 +172,38 @@ appointment_parser.add_argument('estado', type=str, required=False)
 class AppointmentListResource(Resource):
     @login_required
     def get(self):
-        """Obtener todas las citas del doctor logueado"""
+        """
+        Obtener todas las citas del doctor logueado
+        ---
+        tags:
+          - Citas
+        security:
+          - sessionAuth: []
+        responses:
+          200:
+            description: Lista de citas del doctor logueado
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  patient_id:
+                    type: integer
+                  patient_name:
+                    type: string
+                  fecha_cita:
+                    type: string
+                    format: date-time
+                  motivo:
+                    type: string
+                  estado:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+        """
         appointments = Appointment.query.filter_by(doctor_id=session['user_id']).all()
         return jsonify([{
             'id': app.id,
@@ -185,6 +217,58 @@ class AppointmentListResource(Resource):
 
     @login_required
     def post(self):
+        """
+        Crear una nueva cita
+        ---
+        tags:
+          - Citas
+        security:
+          - sessionAuth: []
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - patient_id
+                - fecha_cita
+              properties:
+                patient_id:
+                  type: integer
+                fecha_cita:
+                  type: string
+                  format: date-time
+                motivo:
+                  type: string
+                estado:
+                  type: string
+        responses:
+          201:
+            description: Cita creada exitosamente
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                appointment:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    patient_id:
+                      type: integer
+                    fecha_cita:
+                      type: string
+                      format: date-time
+                    motivo:
+                      type: string
+                    estado:
+                      type: string
+          400:
+            description: Datos inválidos
+        """
+        
         """Crear una nueva cita"""
         args = appointment_parser.parse_args()
         
@@ -251,11 +335,48 @@ class AppointmentListResource(Resource):
 class AppointmentResource(Resource):
     @login_required
     def get(self, appointment_id):
-        """Obtener una cita específica"""
+        """
+        Obtener una cita específica
+        ---
+        tags:
+          - Citas
+        security:
+          - sessionAuth: []
+        parameters:
+          - in: path
+            name: appointment_id
+            type: integer
+            required: true
+            description: ID de la cita
+        responses:
+          200:
+            description: Cita encontrada
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                patient_id:
+                  type: integer
+                patient_name:
+                  type: string
+                fecha_cita:
+                  type: string
+                  format: date-time
+                motivo:
+                  type: string
+                estado:
+                  type: string
+                created_at:
+                  type: string
+                  format: date-time
+          404:
+            description: Cita no encontrada
+        """
         appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
         if not appointment:
             return {'message': 'Cita no encontrada'}, 404
-            
+
         return jsonify({
             'id': appointment.id,
             'patient_id': appointment.patient_id,
@@ -268,6 +389,65 @@ class AppointmentResource(Resource):
 
     @login_required
     def put(self, appointment_id):
+        """
+        Actualizar una cita existente
+        ---
+        tags:
+          - Citas
+        security:
+          - sessionAuth: []
+        parameters:
+          - in: path
+            name: appointment_id
+            type: integer
+            required: true
+            description: ID de la cita
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - patient_id
+                - fecha_cita
+              properties:
+                patient_id:
+                  type: integer
+                fecha_cita:
+                  type: string
+                  format: date-time
+                motivo:
+                  type: string
+                estado:
+                  type: string
+        responses:
+          200:
+            description: Cita actualizada exitosamente
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                appointment:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    patient_id:
+                      type: integer
+                    fecha_cita:
+                      type: string
+                      format: date-time
+                    motivo:
+                      type: string
+                    estado:
+                      type: string
+          400:
+            description: Datos inválidos o cita no editable
+          404:
+            description: Cita no encontrada
+        """
+
         """Actualizar una cita existente"""
         appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
         if not appointment:
@@ -333,6 +513,29 @@ class AppointmentResource(Resource):
 
     @login_required
     def delete(self, appointment_id):
+        """
+        Cancelar una cita
+        ---
+        tags:
+          - Citas
+        security:
+          - sessionAuth: []
+        parameters:
+          - in: path
+            name: appointment_id
+            type: integer
+            required: true
+            description: ID de la cita
+        responses:
+          200:
+            description: Cita cancelada exitosamente
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+        """
+        
         """Cancelar una cita"""
         appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=session['user_id']).first()
         if not appointment:
@@ -373,6 +576,73 @@ class AppointmentResource(Resource):
 # Añadir los recursos a la API
 api.add_resource(AppointmentListResource, '/citas')
 api.add_resource(AppointmentResource, '/citas/<int:appointment_id>')
+
+# ------------------- Configuración de Swagger ------------------- #
+
+# Configuración básica de Swagger (colocar después de crear la app Flask)
+app.config['SWAGGER'] = {
+    'title': 'API de Citas Médicas',
+    'uiversion': 3,
+    'description': 'Documentación de la API para el sistema de gestión de citas médicas',
+    'termsOfService': '',
+    'specs_route': '/apidocs/'
+}
+
+# Configuración extendida del template Swagger
+app.config['SWAGGER']['template'] = {
+    'swagger': '2.0',
+    'info': {
+        'title': 'API de Citas Médicas',
+        'description': 'API para el sistema de gestión de citas médicas',
+        'version': '1.0',
+        'contact': {
+            'email': 'citasmedicascodad@gmail.com'
+        }
+    },
+    'components': {
+        'schemas': {
+            'Appointment': {
+                'type': 'object',
+                'properties': {
+                    'id': {'type': 'integer'},
+                    'patient_id': {'type': 'integer'},
+                    'patient_name': {'type': 'string'},
+                    'fecha_cita': {'type': 'string', 'format': 'date-time'},
+                    'motivo': {'type': 'string'},
+                    'estado': {'type': 'string'},
+                    'created_at': {'type': 'string', 'format': 'date-time'}
+                }
+            },
+            'NewAppointment': {
+                'type': 'object',
+                'required': ['patient_id', 'fecha_cita'],
+                'properties': {
+                    'patient_id': {'type': 'integer'},
+                    'fecha_cita': {'type': 'string', 'format': 'date-time'},
+                    'motivo': {'type': 'string'},
+                    'estado': {'type': 'string'}
+                }
+            },
+            'AppointmentResponse': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'},
+                    'appointment': {
+                        '$ref': '#/components/schemas/Appointment'
+                    }
+                }
+            }
+        },
+        'securitySchemes': {
+            'sessionAuth': {
+                'type': 'apiKey',
+                'in': 'cookie',
+                'name': 'session'
+            }
+        }
+    },
+    'security': [{'sessionAuth': []}]
+}
 
 # ------------------- Rutas de autenticación ------------------- #
 
@@ -931,6 +1201,9 @@ def eliminar_estudio(study_id):
     return redirect(url_for('ver_estudios', patient_id=study.patient_id))
 
 # ------------------- Ejecución de la aplicación ------------------- #
+
+# Inicialización de Swagger
+swagger = Swagger(app)
 
 if __name__ == '__main__':
     with app.app_context():
